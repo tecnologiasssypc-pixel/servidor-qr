@@ -2,58 +2,122 @@ const express = require("express");
 const multer = require("multer");
 const mysql = require("mysql2");
 const QRCode = require("qrcode");
+const path = require("path");
 
 const app = express();
 
-// Servir imágenes
-app.use("/uploads", express.static("uploads"));
+// ======================
+// CONFIGURACIÓN GENERAL
+// ======================
 
-// Config subida
+// Servir imágenes
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ======================
+// MULTER (SUBIDA DE ARCHIVOS)
+// ======================
 const storage = multer.diskStorage({
-  destination: "uploads/",
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
   filename: (req, file, cb) => {
-    cb(null, Date.now() + ".jpg");
+    const ext = path.extname(file.originalname);
+    cb(null, Date.now() + ext);
   }
 });
 
 const upload = multer({ storage });
 
-// Conexión BD
+// ======================
+// CONEXIÓN A BASE DE DATOS (PRODUCCIÓN)
+// ======================
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "appuser",
-  password: "TorreMorelos2026*",
-  database: "qr_app"
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME
 });
 
-// Subir imagen y generar QR
+db.connect((err) => {
+  if (err) {
+    console.error("Error de conexión a BD:", err);
+  } else {
+    console.log("Conectado a la base de datos");
+  }
+});
+
+// ======================
+// SUBIR IMAGEN Y GENERAR QR
+// ======================
 app.post("/subir", upload.single("imagen"), async (req, res) => {
+  if (!req.file) {
+    return res.send("No se subió ninguna imagen");
+  }
+
   const ruta = req.file.path;
 
-  db.query("INSERT INTO imagenes (ruta) VALUES (?)", [ruta], async (err, result) => {
-    const id = result.insertId;
+  db.query(
+    "INSERT INTO imagenes (ruta) VALUES (?)",
+    [ruta],
+    async (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.send("Error en la base de datos");
+      }
 
-    const url = `http://192.168.1.100:3000/ver?id=${id}`;
+      const id = result.insertId;
 
-    const qr = await QRCode.toDataURL(url);
+      // URL pública (Render)
+      const baseUrl = process.env.BASE_URL;
+      const url = `${baseUrl}/ver?id=${id}`;
 
-    res.send(`
-      <h2>QR generado</h2>
-      <img src="${qr}">
-      <p>${url}</p>
-    `);
-  });
+      try {
+        const qr = await QRCode.toDataURL(url);
+
+        res.send(`
+          <h2>QR generado</h2>
+          <img src="${qr}" />
+          <p>${url}</p>
+        `);
+      } catch (error) {
+        console.error(error);
+        res.send("Error generando QR");
+      }
+    }
+  );
 });
 
-// Ver imagen
+// ======================
+// VER IMAGEN
+// ======================
 app.get("/ver", (req, res) => {
   const id = req.query.id;
 
-  db.query("SELECT * FROM imagenes WHERE id = ?", [id], (err, result) => {
-    if (!result.length) return res.send("No encontrada");
+  db.query(
+    "SELECT * FROM imagenes WHERE id = ?",
+    [id],
+    (err, result) => {
+      if (err) {
+        return res.send("Error en la consulta");
+      }
 
-    res.send(`<img src="/${result[0].ruta}" width="400">`);
-  });
+      if (!result.length) {
+        return res.send("No encontrada");
+      }
+
+      res.send(`
+        <h2>Imagen</h2>
+        <img src="/${result[0].ruta}" width="400">
+      `);
+    }
+  );
 });
 
-app.listen(3000, () => console.log("Servidor en puerto 3000"));
+// ======================
+// INICIO DEL SERVIDOR (RENDER)
+// ======================
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("Servidor en puerto " + PORT);
+});

@@ -7,14 +7,14 @@ const path = require("path");
 const app = express();
 
 // ======================
-// CONFIGURACIÓN GENERAL
+// MIDDLEWARE
 // ======================
-
-// Servir imágenes
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 // ======================
-// MULTER (SUBIDA DE ARCHIVOS)
+// MULTER CONFIG
 // ======================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -29,7 +29,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ======================
-// CONEXIÓN A BASE DE DATOS (PRODUCCIÓN)
+// BASE DE DATOS (PRODUCCIÓN)
 // ======================
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
@@ -40,14 +40,14 @@ const db = mysql.createConnection({
 
 db.connect((err) => {
   if (err) {
-    console.error("Error de conexión a BD:", err);
+    console.error("❌ Error de conexión a BD:", err.message);
   } else {
-    console.log("Conectado a la base de datos");
+    console.log("✅ Conectado a la base de datos");
   }
 });
 
 // ======================
-// SUBIR IMAGEN Y GENERAR QR
+// SUBIR IMAGEN + QR
 // ======================
 app.post("/subir", upload.single("imagen"), async (req, res) => {
   if (!req.file) {
@@ -62,12 +62,12 @@ app.post("/subir", upload.single("imagen"), async (req, res) => {
     async (err, result) => {
       if (err) {
         console.error(err);
-        return res.send("Error en la base de datos");
+        return res.send("Error en base de datos");
       }
 
       const id = result.insertId;
 
-      // URL pública (Render)
+      // URL pública del servidor (Render)
       const baseUrl = process.env.BASE_URL;
       const url = `${baseUrl}/ver?id=${id}`;
 
@@ -114,10 +114,10 @@ app.get("/ver", (req, res) => {
 });
 
 // ======================
-// INICIO DEL SERVIDOR (RENDER)
+// INICIO SERVIDOR (RENDER)
 // ======================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Servidor en puerto " + PORT);
+  console.log("🚀 Servidor en puerto " + PORT);
 });

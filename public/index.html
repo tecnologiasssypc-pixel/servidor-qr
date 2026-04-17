@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SSPC - Carga de Imagen</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+        }
+
+        /* TOPBAR */
+        .topbar {
+            background: #f4f4f4;
+            padding: 6px 20px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* HEADER */
+        .header {
+            background: linear-gradient(90deg, #2f3e2e, #3e5a3c);
+            color: white;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px 25px;
+        }
+
+        .header img {
+            height: 60px;
+            object-fit: contain;
+            mix-blend-mode: multiply;
+        }
+
+        .header-text {
+            text-align: center;
+        }
+
+        .header-text h1 {
+            margin: 0;
+            font-size: 28px;
+            letter-spacing: 2px;
+        }
+
+        .header-text p {
+            margin: 0;
+            font-size: 13px;
+            color: #d4c4a0;
+        }
+
+        .subheader {
+            height: 6px;
+            background: #c8a96a;
+        }
+
+        /* CARD */
+        .card-custom {
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        /* BOTÓN */
+        .btn-sspc {
+            background: #2f3e2e;
+            color: white;
+            transition: all 0.2s ease;
+        }
+
+        .btn-sspc:hover {
+            background: #3e5a3c;
+            transform: translateY(-2px);
+        }
+
+        .btn-sspc:active {
+            transform: scale(0.97);
+        }
+
+        /* ANIMACIONES */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(15px);
+            animation: fadeIn 0.6s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* PREVIEW */
+        .preview-img {
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.3s ease;
+        }
+
+        .preview-img.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* QR ANIMACIÓN */
+        #resultado img {
+            animation: zoomIn 0.4s ease;
+            max-width: 200px;
+        }
+
+        @keyframes zoomIn {
+            from {
+                transform: scale(0.7);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+        Gobierno del Estado de Morelos
+    </div>
+
+    <!-- HEADER -->
+    <div class="header">
+        <div class="header-content">
+
+            <img src="/home/administrador/img/logo1.png" alt="Logo">
+
+            <div class="header-text">
+                <h1>SEGURIDAD</h1>
+                <p>Secretaría de Seguridad y Protección Ciudadana</p>
+            </div>
+
+            <img src="/home/administrador/img/LOGO3.PNG" alt="Logo">
+
+        </div>
+        <div class="subheader"></div>
+    </div>
+
+    <!-- CONTENIDO -->
+    <div class="container mt-5 fade-in">
+        <div class="card card-custom p-4 mx-auto" style="max-width: 420px;">
+
+            <h5 class="text-center mb-3">Subir Imagen</h5>
+
+            <form id="formulario">
+                <input type="text" name="nombre" class="form-control mb-2" placeholder="Nombre del archivo" required>
+
+                <input type="file" name="archivo" class="form-control mb-3" accept="image/*" required onchange="previewImage(event)">
+
+                <button class="btn btn-sspc w-100">Subir Imagen</button>
+            </form>
+
+            <!-- Preview -->
+            <div class="text-center mt-3">
+                <small class="text-muted">Vista previa:</small>
+                <img id="preview" class="img-fluid mt-2 d-none">
+            </div>
+
+            <!-- Loader -->
+            <div id="loader" class="text-center mt-3 d-none">
+                <div class="spinner-border text-success"></div>
+                <p class="mt-2">Procesando...</p>
+            </div>
+
+            <!-- Resultado -->
+            <div id="resultado" class="text-center mt-3"></div>
+
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script>
+        function previewImage(event) {
+            const reader = new FileReader();
+
+            reader.onload = function () {
+                const img = document.getElementById("preview");
+                img.src = reader.result;
+                img.classList.remove("d-none");
+                img.classList.add("preview-img", "show");
+            }
+
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        document.getElementById("formulario").addEventListener("submit", async function(e) {
+            e.preventDefault();
+
+            const loader = document.getElementById("loader");
+            const resultado = document.getElementById("resultado");
+
+            loader.classList.remove("d-none");
+            resultado.innerHTML = "";
+
+            const formData = new FormData(this);
+
+            const res = await fetch("/subir", {
+                method: "POST",
+                body: formData
+            });
+
+            const html = await res.text();
+
+            loader.classList.add("d-none");
+            resultado.innerHTML = `<div class="fade-in">${html}</div>`;
+        });
+    </script>
+
+</body>
+</html>

@@ -45,19 +45,12 @@ db.connect((err) => {
     console.log("✅ Conectado a la base de datos");
   }
 });
-
+app.use(express.static(path.join(__dirname, "public")));
 // ======================
 // RUTA PRINCIPAL (SOLUCION A "Cannot GET /")
 // ======================
 app.get("/", (req, res) => {
-  res.send(`
-    <h2>📸 Servidor QR funcionando</h2>
-    <p>Endpoints disponibles:</p>
-    <ul>
-      <li>POST /subir → subir imagen</li>
-      <li>GET /ver?id=1 → ver imagen</li>
-    </ul>
-  `);
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // ======================

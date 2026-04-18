@@ -45,7 +45,7 @@ const db = mysql.createConnection({
   password: process.env.MYSQLPASSWORD,
   database: process.env.MYSQLDATABASE,
   port: process.env.MYSQLPORT
-  });
+});
 
 db.connect((err) => {
   if (err) {
@@ -132,6 +132,8 @@ app.get("/ver", (req, res) => {
 // INICIO SERVIDOR
 // ======================
 const PORT = process.env.PORT || 3000;
+console.log("HOST:", process.env.MYSQLHOST);
+console.log("PORT:", process.env.MYSQLPORT);
 
 app.listen(PORT, () => {
   console.log("🚀 Servidor en puerto " + PORT);

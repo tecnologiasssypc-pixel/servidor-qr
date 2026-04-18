@@ -29,7 +29,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // ======================
-// BASE DE DATOS (PRODUCCIÓN)
+// BASE DE DATOS
 // ======================
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
@@ -44,6 +44,20 @@ db.connect((err) => {
   } else {
     console.log("✅ Conectado a la base de datos");
   }
+});
+
+// ======================
+// RUTA PRINCIPAL (SOLUCION A "Cannot GET /")
+// ======================
+app.get("/", (req, res) => {
+  res.send(`
+    <h2>📸 Servidor QR funcionando</h2>
+    <p>Endpoints disponibles:</p>
+    <ul>
+      <li>POST /subir → subir imagen</li>
+      <li>GET /ver?id=1 → ver imagen</li>
+    </ul>
+  `);
 });
 
 // ======================
@@ -67,7 +81,6 @@ app.post("/subir", upload.single("imagen"), async (req, res) => {
 
       const id = result.insertId;
 
-      // URL pública del servidor (Render)
       const baseUrl = process.env.BASE_URL;
       const url = `${baseUrl}/ver?id=${id}`;
 
@@ -114,7 +127,7 @@ app.get("/ver", (req, res) => {
 });
 
 // ======================
-// INICIO SERVIDOR (RENDER)
+// INICIO SERVIDOR
 // ======================
 const PORT = process.env.PORT || 3000;
 

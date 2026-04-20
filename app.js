@@ -82,7 +82,8 @@ app.post("/subir", upload.single("imagen"), async (req, res) => {
     );
 
     // Generar QR
-    const qrLink = `${process.env.BASE_URL}/img/${identificador}`;
+    const base = process.env.BASE_URL.replace(/\/$/, "");
+    const qrLink = `${base}/img/${identificador}`;
     const qr = await QRCode.toDataURL(qrLink);
 
     res.json({

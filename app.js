@@ -1,11 +1,24 @@
+require("dotenv").config();
+
 const express = require("express");
 const multer = require("multer");
 const mysql = require("mysql2");
 const QRCode = require("qrcode");
 const path = require("path");
-const fs = require("fs");
+
+// Cloudinary
+const { v2: cloudinary } = require("cloudinary");
 
 const app = express();
+
+// ======================
+// CONFIG CLOUDINARY
+// ======================
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.API_SECRET
+});
 
 // ======================
 // MIDDLEWARE
@@ -13,38 +26,17 @@ const app = express();
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Servir carpeta public (tu frontend)
+// Servir carpeta public
 app.use(express.static(path.join(__dirname, "public")));
 
-// Servir imágenes subidas
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
 // ======================
-// CREAR CARPETA UPLOADS
+// MULTER (MEMORIA, NO DISCO)
 // ======================
-const uploadDir = path.join(__dirname, "uploads");
-
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// ======================
-// MULTER CONFIG
-// ======================
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, Date.now() + ext);
-  }
-});
-
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // ======================
-// BASE DE DATOS (Railway)
+// BASE DE DATOS
 // ======================
 const db = mysql.createConnection(process.env.MYSQL_PUBLIC_URL);
 
@@ -72,11 +64,23 @@ app.post("/subir", upload.single("imagen"), async (req, res) => {
       return res.send("No se subió ninguna imagen");
     }
 
-    const ruta = req.file.path;
+    // Subir a Cloudinary
+    const subida = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: "qr-app" },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(req.file.buffer);
+    });
 
+    const urlImagen = subida.secure_url;
+
+    // Guardar en BD
     db.query(
       "INSERT INTO imagenes (ruta) VALUES (?)",
-      [ruta],
+      [urlImagen],
       async (err, result) => {
         if (err) {
           console.error("Error BD:", err);
@@ -85,10 +89,7 @@ app.post("/subir", upload.single("imagen"), async (req, res) => {
 
         const id = result.insertId;
 
-        const baseUrl =
-          process.env.BASE_URL ||
-          "https://servidor-qr-bpa8.onrender.com";
-
+        const baseUrl = process.env.BASE_URL || "http://localhost:3000";
         const url = `${baseUrl}/ver?id=${id}`;
 
         const qr = await QRCode.toDataURL(url);
@@ -127,14 +128,14 @@ app.get("/ver", (req, res) => {
 
       res.send(`
         <h2>Imagen</h2>
-        <img src="/${result[0].ruta}" width="400">
+        <img src="${result[0].ruta}" width="400">
       `);
     }
   );
 });
 
 // ======================
-// INICIO SERVIDOR
+// SERVIDOR
 // ======================
 const PORT = process.env.PORT || 3000;
 

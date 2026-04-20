@@ -2,17 +2,15 @@ require("dotenv").config();
 
 const express = require("express");
 const multer = require("multer");
-const mysql = require("mysql2");
+const { Pool } = require("pg");
 const QRCode = require("qrcode");
 const path = require("path");
-
-// Cloudinary
 const { v2: cloudinary } = require("cloudinary");
 
 const app = express();
 
 // ======================
-// CONFIG CLOUDINARY
+// CLOUDINARY
 // ======================
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
@@ -25,27 +23,20 @@ cloudinary.config({
 // ======================
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-
-// Servir carpeta public
 app.use(express.static(path.join(__dirname, "public")));
 
 // ======================
-// MULTER (MEMORIA, NO DISCO)
+// MULTER
 // ======================
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // ======================
-// BASE DE DATOS
+// NEON (POSTGRES)
 // ======================
-const db = mysql.createConnection(process.env.MYSQL_PUBLIC_URL);
-
-db.connect((err) => {
-  if (err) {
-    console.error("❌ Error de conexión a BD:", err);
-  } else {
-    console.log("✅ Conectado a la base de datos");
-  }
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
 // ======================
@@ -60,14 +51,19 @@ app.get("/", (req, res) => {
 // ======================
 app.post("/subir", upload.single("imagen"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.send("No se subió ninguna imagen");
+    const { identificador } = req.body;
+
+    if (!req.file || !identificador) {
+      return res.status(400).send("Faltan datos");
     }
 
     // Subir a Cloudinary
     const subida = await new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
-        { folder: "qr-app" },
+        {
+          public_id: identificador,
+          folder: "qr-app"
+        },
         (error, result) => {
           if (error) reject(error);
           else resolve(result);
@@ -77,68 +73,55 @@ app.post("/subir", upload.single("imagen"), async (req, res) => {
 
     const urlImagen = subida.secure_url;
 
-    // Guardar en BD
-    db.query(
-      "INSERT INTO imagenes (ruta) VALUES (?)",
-      [urlImagen],
-      async (err, result) => {
-        if (err) {
-          console.error("Error BD:", err);
-          return res.send("Error en base de datos");
-        }
-
-        const id = result.insertId;
-
-        const baseUrl = process.env.BASE_URL || "http://localhost:3000";
-        const url = `${baseUrl}/ver?id=${id}`;
-
-        const qr = await QRCode.toDataURL(url);
-
-        res.send(`
-          <h2>QR generado</h2>
-          <img src="${qr}" />
-          <p>${url}</p>
-        `);
-      }
+    // Guardar en Neon
+    await pool.query(
+      "INSERT INTO imagenes (identificador, url) VALUES ($1, $2)",
+      [identificador, urlImagen]
     );
-  } catch (error) {
-    console.error("Error general:", error);
-    res.status(500).send("Error interno del servidor");
+
+    // Generar QR
+    const qrLink = `${process.env.BASE_URL}/img/${identificador}`;
+    const qr = await QRCode.toDataURL(qrLink);
+
+    res.json({
+      mensaje: "OK",
+      qr: qr
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    // Manejo de duplicados
+    if (err.code === "23505") {
+      return res.status(400).send("El identificador ya existe");
+    }
+
+    res.status(500).send("Error del servidor");
   }
 });
 
 // ======================
-// VER IMAGEN
+// MOSTRAR IMAGEN
 // ======================
-app.get("/ver", (req, res) => {
-  const id = req.query.id;
+app.get("/img/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
 
-  db.query(
-    "SELECT * FROM imagenes WHERE id = ?",
-    [id],
-    (err, result) => {
-      if (err) {
-        console.error(err);
-        return res.send("Error en la consulta");
-      }
+    const result = await pool.query(
+      "SELECT url FROM imagenes WHERE identificador = $1",
+      [id]
+    );
 
-      if (!result.length) {
-        return res.send("No encontrada");
-      }
-
-      res.send(`
-        <h2>Imagen</h2>
-        <img src="${result[0].ruta}" width="400">
-      `);
+    if (result.rows.length === 0) {
+      return res.send("Imagen no encontrada");
     }
-  );
+
+    res.redirect(result.rows[0].url);
+
+  } catch (err) {
+    res.status(500).send("Error");
+  }
 });
 
 // ======================
-// SERVIDOR
-// ======================
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log("🚀 Servidor en puerto " + PORT);
-});
+app.listen(3000, () => console.log("Servidor activo en puerto 3000"));
